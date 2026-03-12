@@ -2,11 +2,12 @@ import os
 import json
 import uuid
 import random
+import hashlib
 from datetime import datetime, timedelta
 from faker import Faker
 
 fake = Faker()
-random.seed(42)
+random.seed()
 
 # ---------------------------------------------------
 # CONFIG
@@ -44,6 +45,37 @@ ITEM_CATALOG = [
 LEVELS = list(range(1, 21))
 
 # ---------------------------------------------------
+# STABLE ATTRIBUTE HELPERS
+# These use a hash of the user_id so the same user always
+# gets the same value regardless of when the script is run.
+# ---------------------------------------------------
+def stable_choice(user_id: str, options: list, salt: str = "") -> str:
+    """Always returns the same option for a given user_id + salt combo."""
+    key = f"{user_id}{salt}".encode()
+    hash_int = int(hashlib.md5(key).hexdigest(), 16)
+    return options[hash_int % len(options)]
+
+def stable_weighted_choice(user_id: str, options_with_weights: list, salt: str = ""):
+    """
+    Deterministic weighted choice for a given user_id + salt.
+    options_with_weights: list of (value, weight) tuples.
+    """
+    key = f"{user_id}{salt}".encode()
+    hash_int = int(hashlib.md5(key).hexdigest(), 16)
+    # Use hash to produce a stable float in [0, 1)
+    stable_float = (hash_int % 1_000_000) / 1_000_000
+
+    values = [x[0] for x in options_with_weights]
+    weights = [x[1] for x in options_with_weights]
+    total = sum(weights)
+    cumulative = 0.0
+    for value, weight in zip(values, weights):
+        cumulative += weight / total
+        if stable_float < cumulative:
+            return value
+    return values[-1]
+
+# ---------------------------------------------------
 # HELPERS
 # ---------------------------------------------------
 def ensure_dir(path: str):
@@ -69,7 +101,6 @@ def weighted_choice(options_with_weights):
     return random.choices(values, weights=weights, k=1)[0]
 
 def maybe_corrupt_timestamp(ts: str) -> str:
-    # intentionally introduce bad timestamps occasionally
     roll = random.random()
     if roll < 0.01:
         return ts.replace("T", " ")
@@ -103,6 +134,10 @@ def write_json_lines(path: str, records: list):
 
 # ---------------------------------------------------
 # PLAYER PROFILE GENERATION
+# Stable attributes (country, device, acquisition_channel,
+# skill_tier, payer_segment, engagement_segment) are derived
+# deterministically from user_id so they never change between runs.
+# Everything else (names, install dates, flags) can vary.
 # ---------------------------------------------------
 def generate_player_profiles(num_players=NUM_PLAYERS):
     players = []
@@ -110,33 +145,41 @@ def generate_player_profiles(num_players=NUM_PLAYERS):
     for i in range(1, num_players + 1):
         user_id = f"u{i:06d}"
         install_dt = random_datetime(START_DATE, END_DATE)
-        country = random.choice(COUNTRIES)
-        device = weighted_choice([("android", 0.62), ("ios", 0.38)])
-        acquisition_channel = weighted_choice([
+
+        # --- STABLE: same every run for this user_id ---
+        country = stable_choice(user_id, COUNTRIES, salt="country")
+        device = stable_weighted_choice(user_id, [("android", 0.62), ("ios", 0.38)], salt="device")
+        acquisition_channel = stable_weighted_choice(user_id, [
             ("organic", 0.35),
             ("facebook_ads", 0.20),
             ("google_ads", 0.18),
             ("tiktok_ads", 0.17),
             ("referral", 0.10)
-        ])
-
-        # latent traits for realism
-        skill_tier = weighted_choice([
+        ], salt="acquisition")
+        skill_tier = stable_weighted_choice(user_id, [
             ("low", 0.25),
             ("mid", 0.50),
             ("high", 0.25)
-        ])
-        payer_segment = weighted_choice([
+        ], salt="skill")
+        payer_segment = stable_weighted_choice(user_id, [
             ("non_payer", 0.70),
             ("light_payer", 0.20),
             ("whale", 0.10)
-        ])
-        engagement_segment = weighted_choice([
+        ], salt="payer")
+        engagement_segment = stable_weighted_choice(user_id, [
             ("casual", 0.40),
             ("regular", 0.45),
             ("hardcore", 0.15)
-        ])
+        ], salt="engagement")
+        app_version = stable_weighted_choice(user_id, [
+            ("1.0.0", 0.10),
+            ("1.1.0", 0.20),
+            ("1.2.0", 0.30),
+            ("1.3.0", 0.25),
+            ("1.4.0", 0.15)
+        ], salt="appversion")
 
+        # --- VARIABLE: changes each run ---
         record = {
             "user_id": user_id,
             "player_name": fake.user_name(),
@@ -144,13 +187,7 @@ def generate_player_profiles(num_players=NUM_PLAYERS):
             "install_ts": isoformat_z(install_dt),
             "country": maybe_corrupt_country(country),
             "device": maybe_corrupt_device(device),
-            "app_version": weighted_choice([
-                ("1.0.0", 0.10),
-                ("1.1.0", 0.20),
-                ("1.2.0", 0.30),
-                ("1.3.0", 0.25),
-                ("1.4.0", 0.15)
-            ]),
+            "app_version": app_version,
             "acquisition_channel": acquisition_channel,
             "skill_tier": skill_tier,
             "payer_segment": payer_segment,
@@ -159,7 +196,7 @@ def generate_player_profiles(num_players=NUM_PLAYERS):
             "created_at": isoformat_z(install_dt)
         }
 
-        # intentional messiness
+        # intentional messiness (still random — affects different users each run)
         if random.random() < 0.01:
             record["country"] = None
         if random.random() < 0.01:
@@ -185,7 +222,6 @@ def generate_sessions(players):
     for p in players:
         user_id = p["user_id"]
 
-        # skip exact duplicate profile effects by reusing first user occurrence
         if user_id in sessions_by_user:
             continue
 
@@ -204,7 +240,6 @@ def generate_sessions(players):
 
         engagement = p["engagement_segment"]
 
-        # session frequency based on engagement
         if engagement == "casual":
             mean_active_days = min(days_since_install, random.randint(2, 10))
         elif engagement == "regular":
@@ -220,7 +255,6 @@ def generate_sessions(players):
         user_sessions = []
 
         for active_day in active_days:
-            # number of sessions on that day
             num_sessions_today = weighted_choice([
                 (1, 0.65),
                 (2, 0.25),
@@ -244,22 +278,22 @@ def generate_sessions(players):
                 ])
                 session_end = session_start + timedelta(minutes=duration_minutes)
 
+                # Use the player's stable country/device as the base,
+                # then apply corruption on top (corruption is still random per run)
+                base_device = p["device"] if p.get("device") else random.choice(DEVICES)
+                base_country = p["country"] if p.get("country") else random.choice(COUNTRIES)
+
                 session_record = {
                     "session_id": str(uuid.uuid4()),
                     "user_id": user_id,
                     "session_start": maybe_corrupt_timestamp(isoformat_z(session_start)),
                     "session_end": maybe_corrupt_timestamp(isoformat_z(session_end)),
                     "session_duration_seconds": duration_minutes * 60,
-                    "device": maybe_corrupt_device(
-                        p["device"] if p.get("device") else random.choice(DEVICES)
-                    ),
-                    "country": maybe_corrupt_country(
-                        p["country"] if p.get("country") else random.choice(COUNTRIES)
-                    ),
+                    "device": maybe_corrupt_device(base_device),
+                    "country": maybe_corrupt_country(base_country),
                     "app_version": p["app_version"]
                 }
 
-                # intentional issues
                 if random.random() < 0.005:
                     session_record["session_duration_seconds"] = -1
                 if random.random() < 0.003:
@@ -270,7 +304,6 @@ def generate_sessions(players):
 
         sessions_by_user[user_id] = user_sessions
 
-    # duplicate a small fraction
     if sessions:
         sessions.extend(random.sample(sessions, k=max(1, len(sessions) // 200)))
 
@@ -307,7 +340,6 @@ def generate_game_events(players, sessions_by_user):
             }
             events.append(install_event)
 
-            # tutorial events for many users
             if random.random() < 0.9:
                 tutorial_start_time = datetime.strptime(install_ts, "%Y-%m-%dT%H:%M:%SZ") + timedelta(minutes=1)
                 events.append({
@@ -349,7 +381,6 @@ def generate_game_events(players, sessions_by_user):
         for s in user_sessions:
             session_id = s["session_id"]
 
-            # session_start event
             events.append({
                 "event_id": str(uuid.uuid4()),
                 "user_id": user_id,
@@ -365,7 +396,6 @@ def generate_game_events(players, sessions_by_user):
                 "app_version": s["app_version"]
             })
 
-            # gameplay inside session
             num_levels_attempted = weighted_choice([
                 (1, 0.40),
                 (2, 0.30),
@@ -405,7 +435,6 @@ def generate_game_events(players, sessions_by_user):
                     "app_version": s["app_version"]
                 })
 
-                # success probability depends on skill and level difficulty
                 level_difficulty_penalty = min(current_level * 0.015, 0.25)
                 if skill == "high":
                     success_prob = 0.82 - level_difficulty_penalty
@@ -450,7 +479,6 @@ def generate_game_events(players, sessions_by_user):
                         "app_version": s["app_version"]
                     })
 
-            # session_end event
             events.append({
                 "event_id": str(uuid.uuid4()),
                 "user_id": user_id,
@@ -544,7 +572,6 @@ def generate_purchases(players, sessions_by_user):
                         ])
                     }
 
-                    # intentional bad values
                     if random.random() < 0.004:
                         purchase_record["price_usd"] = -1.0
                     if random.random() < 0.003:
@@ -630,10 +657,10 @@ def main():
     )
 
     print("\nDone.")
-    print(f"Players: {len(players):,}")
-    print(f"Sessions: {len(sessions):,}")
-    print(f"Game events: {len(game_events):,}")
-    print(f"Purchases: {len(purchases):,}")
+    print(f"Players:      {len(players):,}")
+    print(f"Sessions:     {len(sessions):,}")
+    print(f"Game events:  {len(game_events):,}")
+    print(f"Purchases:    {len(purchases):,}")
 
 if __name__ == "__main__":
     main()
