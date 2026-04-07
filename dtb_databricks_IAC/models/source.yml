@@ -1,0 +1,11 @@
+
+version: 2
+
+sources:
+  - name: sql_db
+    catalog: transform
+    schema: sql_db
+    description: "bronze layer"
+    tables:
+      - name: sales_bronze
+        description: "sales bronze"

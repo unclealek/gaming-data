@@ -1,0 +1,28 @@
+models:
+  - name: model1
+    columns:
+      - name: customerID
+        description: "customer id"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('model2')
+              field: customerID
+      - name: first_name
+        description: "first name"
+        tests:
+          - not_null
+      - name: last_name
+        description: "last name"
+        tests:
+          - not_null
+      - name: email_address
+        description: "email address"
+        tests:
+          - not_null
+          - unique
+      - name: gender
+        description: "gender"
+        tests:
+          - accepted_values:
+              values: ["male", "female"]

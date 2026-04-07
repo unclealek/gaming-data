@@ -1,0 +1,13 @@
+
+version: 2
+
+sources:
+  - name: bakehouse
+    catalog: samples
+    schema: bakehouse
+    description: "samples"
+    tables:
+      - name: sales_customers
+        description: "sales customers"
+      - name: sales_transactions
+        description: "sales transactions"

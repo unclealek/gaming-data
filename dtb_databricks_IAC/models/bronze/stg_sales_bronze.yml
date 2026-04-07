@@ -1,0 +1,51 @@
+models:
+  - name: stg_sales_bronze
+    columns:
+      - name: user_id
+        description: "user id"
+        tests:
+          - unique
+          - not_null:
+              config:
+                severity: warn
+      - name: first_name
+        description: "first name"
+      - name: last_name
+        description: "last name"
+      - name: email_addr
+        description: "email address"
+        tests:
+          - unique
+          - not_null:
+              config:
+                severity: warn
+      - name: sale_date
+        description: "sale date"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              arguments:
+                column_type: date
+      - name: base_price
+        description: "base price"
+        tests:
+          - not_null
+      - name: jan_sales
+        description: "jan sales"
+        tests:
+          - not_null
+      - name: feb_sales
+        description: "feb sales"
+        tests:
+          - not_null
+      - name: user_rating
+        description: "user rating"
+        tests:
+          - not_null
+      - name: batch_id
+        description: "batch id"
+        tests:
+          - not_null
+      - name: ingestion_timestamp
+        description: "ingestion timestamp"
+        tests:
+          - not_null

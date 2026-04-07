@@ -1,0 +1,31 @@
+models:
+  - name: model2
+    columns:
+      - name: transactionID
+        description: "transaction id"
+        tests:
+          - not_null
+      - name: customerID
+        description: "customer id"
+        tests:
+          - not_null
+      - name: product
+        description: "product"
+        tests:
+          - not_null
+      - name: quantity
+        description: "quantity"
+        tests:
+          - not_null
+      - name: unitPrice
+        description: "unit price"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: bigint
+      - name: totalPrice
+        description: "total price"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: bigint

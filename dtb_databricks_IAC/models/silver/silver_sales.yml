@@ -1,0 +1,53 @@
+models:
+  - name: silver_sales
+    description: "The validated, enriched sales data ready for reporting."
+    columns:
+      - name: user_id
+        tests:
+          - unique
+          - not_null
+          - relationships: # Referential Integrity!
+              to: ref('stg_sales_bronze')
+              field: user_id
+      - name: total_q1_sales
+        description: "Sum of Jan and Feb sales"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 10000
+      - name: user_rating
+        description: "user rating"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                  min_value: 0
+                  max_value: 5
+      - name: first_name
+        tests:
+          - not_null
+      - name: last_name
+        tests:
+          - not_null
+      - name: email_addr
+        tests:
+          - not_null
+      - name: region_name
+        tests:
+          - not_null
+      - name: sale_date
+        tests:
+          - not_null
+      - name: base_price
+        tests:
+          - not_null
+      - name: jan_sales
+        tests:
+          - not_null
+      - name: feb_sales
+        tests:
+          - not_null
+      - name: batch_id
+        tests:
+          - not_null
+      
