@@ -1,0 +1,13 @@
+databricks_host       = "https://adb-1234567890123456.7.azuredatabricks.net"
+databricks_token      = "replace-with-databricks-pat"
+warehouse_id          = "1234abcd5678efgh"
+job_name              = "gaming_data_dbt_pipeline"
+git_repo_url          = "https://github.com/unclealek/gaming-data.git"
+git_branch            = "main"
+dbt_project_directory = "dtb_databricks_IAC"
+spark_version         = "13.3.x-scala2.12"
+node_type_id          = "i3.xlarge"
+num_workers           = 1
+job_timezone          = "Europe/Helsinki"
+job_cron_expression   = "0 0 9 * * ?"
+job_pause_status      = "PAUSED"

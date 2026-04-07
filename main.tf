@@ -3,7 +3,7 @@ terraform {
   required_providers {
     databricks = {
       source  = "databricks/databricks"
-      version = "~> 1.0"
+      version = "~> 1.112"
     }
   }
 }
@@ -14,20 +14,20 @@ provider "databricks" {
 }
 
 resource "databricks_job" "dbt_pipeline_job" {
-  name = "gaming_data_dbt_pipeline"
+  name = var.job_name
 
   git_source {
-    url      = "https://github.com/unclealek/gaming-data.git"
+    url      = var.git_repo_url
     provider = "gitHub"
-    branch   = "main"
+    branch   = var.git_branch
   }
 
   job_cluster {
     job_cluster_key = "dbt_cluster"
     new_cluster {
-      spark_version = "13.3.x-scala2.12"
-      node_type_id  = "i3.xlarge"
-      num_workers   = 1
+      spark_version = var.spark_version
+      node_type_id  = var.node_type_id
+      num_workers   = var.num_workers
     }
   }
 
@@ -35,7 +35,7 @@ resource "databricks_job" "dbt_pipeline_job" {
     task_key = "run_dbt_models"
 
     dbt_task {
-      project_directory = "dtb_databricks_IAC"
+      project_directory = var.dbt_project_directory
       commands          = ["dbt deps", "dbt build"]
       warehouse_id      = var.warehouse_id
     }
@@ -46,5 +46,6 @@ resource "databricks_job" "dbt_pipeline_job" {
   schedule {
     quartz_cron_expression = var.job_cron_expression
     timezone_id            = var.job_timezone
+    pause_status           = var.job_pause_status
   }
 }

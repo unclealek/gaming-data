@@ -1,15 +1,60 @@
-Welcome to your new dbt project!
+# dbt project
 
-### Using the starter project
+This folder contains the dbt project used by the Terraform-managed Databricks job in the repository root.
 
-Try running the following commands:
-- dbt run
-- dbt test
+## Project details
 
+- Project name: `dtb_databricks_IAC`
+- dbt profile name: `dtb_databricks_IAC`
+- Main model folders: `models/bronze`, `models/silver`, `models/example`
 
-### Resources:
-- Learn more about dbt [in the docs](https://docs.getdbt.com/docs/introduction)
-- Check out [Discourse](https://discourse.getdbt.com/) for commonly asked questions and answers
-- Join the [chat](https://community.getdbt.com/) on Slack for live discussions and support
-- Find [dbt events](https://events.getdbt.com) near you
-- Check out [the blog](https://blog.getdbt.com/) for the latest news on dbt's development and best practices
+## First-time local setup
+
+Install dbt with the Databricks adapter:
+
+```bash
+pip install dbt-databricks
+```
+
+Create `~/.dbt/profiles.yml` with a matching profile name:
+
+```yaml
+dtb_databricks_IAC:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: https://adb-xxxxxxxxxxxxxxxx.x.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/<warehouse-id>
+      token: <databricks-pat>
+      catalog: workspace
+      schema: dbt_kaliche
+      threads: 4
+```
+
+Then run:
+
+```bash
+dbt deps
+dbt debug
+dbt build
+```
+
+## Source dependencies
+
+This project currently expects these source tables to exist:
+
+- `transform.sql_db.sales_bronze`
+- `samples.bakehouse.sales_customers`
+- `samples.bakehouse.sales_transactions`
+
+If your environment uses different catalogs or schemas, update the source YAML files before running `dbt build`.
+
+## Output location
+
+Seeds in this project are configured to use:
+
+- Catalog: `workspace`
+- Schema: `dbt_kaliche`
+
+Adjust that in `dbt_project.yml` if your target schema should be different.
